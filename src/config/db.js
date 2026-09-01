@@ -1,49 +1,53 @@
 const { MongoClient, ServerApiVersion } = require('mongodb');
-const dns = require('dns');
-
-// Safely set DNS resolvers for Windows/Node.js querySrv lookup
-try {
-  dns.setServers(['8.8.8.8', '8.8.4.4', '1.1.1.1']);
-} catch (err) {
-  console.warn('DNS resolver setting warning:', err.message);
-}
 
 const uri = process.env.MONGODB_URI;
 
-let client;
-let clientPromise;
-
 if (!uri) {
-  console.warn('⚠️ MONGODB_URI environment variable is missing!');
+  console.warn('⚠️  MONGODB_URI environment variable is missing! Check your .env file or Vercel Environment Variables.');
 }
 
-if (process.env.NODE_ENV === 'development') {
-  if (!global._mongoClientPromise) {
-    client = new MongoClient(uri, {
-      serverApi: {
-        version: ServerApiVersion.v1,
-        strict: true,
-        deprecationErrors: true,
-      }
-    });
-    global._mongoClientPromise = client.connect().catch((err) => {
-      console.error('MongoDB Connection Error:', err.message);
-      return null;
-    });
+// MongoClient options - works for both local dev and Vercel serverless
+const clientOptions = {
+  serverApi: {
+    version: ServerApiVersion.v1,
+    strict: true,
+    deprecationErrors: true,
+  },
+  maxPoolSize: 10,
+  serverSelectionTimeoutMS: 15000,
+  socketTimeoutMS: 30000,
+  connectTimeoutMS: 15000,
+  family: 4, // Force IPv4 to avoid IPv6 DNS issues
+};
+
+// Use a cached connection to avoid creating new connections on every serverless invocation
+let cachedClient = null;
+let cachedClientPromise = null;
+
+async function connectToDatabase() {
+  if (cachedClient && cachedClientPromise) {
+    return { client: cachedClient, clientPromise: cachedClientPromise };
   }
-  clientPromise = global._mongoClientPromise;
-} else {
-  client = new MongoClient(uri || 'mongodb://localhost:27017', {
-    serverApi: {
-      version: ServerApiVersion.v1,
-      strict: true,
-      deprecationErrors: true,
-    }
-  });
-  clientPromise = client.connect().catch((err) => {
+
+  const client = new MongoClient(uri, clientOptions);
+  cachedClientPromise = client.connect();
+  cachedClient = client;
+
+  cachedClientPromise.catch((err) => {
     console.error('MongoDB Connection Error:', err.message);
-    return null;
+    cachedClient = null;
+    cachedClientPromise = null;
   });
+
+  return { client: cachedClient, clientPromise: cachedClientPromise };
 }
 
-module.exports = { client, clientPromise };
+// Eagerly connect so the module-level `client` is usable by existing routes
+const client = new MongoClient(uri || 'mongodb://localhost:27017', clientOptions);
+
+const clientPromise = client.connect().catch((err) => {
+  console.error('MongoDB Connection Error:', err.message);
+  return null;
+});
+
+module.exports = { client, clientPromise, connectToDatabase };

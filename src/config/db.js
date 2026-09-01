@@ -2,34 +2,37 @@ const { MongoClient, ServerApiVersion } = require('mongodb');
 
 const uri = process.env.MONGODB_URI;
 
+let client;
+let clientPromise;
+
 if (!uri) {
   console.warn('⚠️ MONGODB_URI environment variable is missing!');
 }
 
-// Create a MongoClient with a MongoClientOptions object to set the Stable API version
-const client = new MongoClient(uri || 'mongodb://localhost:27017', {
-  serverApi: {
-    version: ServerApiVersion.v1,
-    strict: true,
-    deprecationErrors: true,
+if (process.env.NODE_ENV === 'development') {
+  // In development mode, use a global variable so that the value
+  // is preserved across module reloads caused by HMR (Hot Module Replacement).
+  if (!global._mongoClientPromise) {
+    client = new MongoClient(uri, {
+      serverApi: {
+        version: ServerApiVersion.v1,
+        strict: true,
+        deprecationErrors: true,
+      }
+    });
+    global._mongoClientPromise = client.connect();
   }
-});
-
-let isConnected = false;
-
-async function connectDB() {
-  if (isConnected) return client;
-  try {
-    await client.connect();
-    isConnected = true;
-    console.log("Pinged your deployment. You successfully connected to MongoDB!");
-    return client;
-  } catch (error) {
-    console.error("MongoDB Connection Error:", error);
-    throw error;
-  }
+  clientPromise = global._mongoClientPromise;
+} else {
+  // In production mode, it's best to not use a global variable.
+  client = new MongoClient(uri || 'mongodb://localhost:27017', {
+    serverApi: {
+      version: ServerApiVersion.v1,
+      strict: true,
+      deprecationErrors: true,
+    }
+  });
+  clientPromise = client.connect();
 }
 
-connectDB().catch(console.dir);
-
-module.exports = { client, connectDB };
+module.exports = { client, clientPromise };

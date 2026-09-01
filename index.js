@@ -5,7 +5,7 @@ const dotenv = require('dotenv');
 // Load environment variables
 dotenv.config();
 
-// Run MongoDB connection test
+// Run MongoDB connection
 require('./src/config/db');
 
 const userRoutes = require('./src/routes/userRoutes');
@@ -15,7 +15,6 @@ const orderRoutes = require('./src/routes/orderRoutes');
 const categoryRoutes = require('./src/routes/categoryRoutes');
 
 const app = express();
-const PORT = process.env.PORT || 5000;
 
 // Middlewares
 app.use(cors());
@@ -38,7 +37,12 @@ app.get('/', (req, res) => {
   });
 });
 
-// Start Server
-app.listen(PORT, () => {
-  console.log(`🚀 Green Gladiators Server running on port ${PORT}`);
-});
+// Start Server locally if not running as serverless function
+if (process.env.NODE_ENV !== 'production') {
+  const PORT = process.env.PORT || 5000;
+  app.listen(PORT, () => {
+    console.log(`🚀 Green Gladiators Server running on port ${PORT}`);
+  });
+}
+
+module.exports = app;

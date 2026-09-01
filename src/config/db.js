@@ -1,17 +1,13 @@
 const { MongoClient, ServerApiVersion } = require('mongodb');
-const dns = require('dns');
-
-// Force Node.js to use Google Public DNS servers (8.8.8.8 & 8.8.4.4) for SRV record lookup
-try {
-  dns.setServers(['8.8.8.8', '8.8.4.4', '1.1.1.1']);
-} catch (err) {
-  console.warn('DNS server override warning:', err.message);
-}
 
 const uri = process.env.MONGODB_URI;
 
+if (!uri) {
+  console.warn('⚠️ MONGODB_URI environment variable is missing!');
+}
+
 // Create a MongoClient with a MongoClientOptions object to set the Stable API version
-const client = new MongoClient(uri, {
+const client = new MongoClient(uri || 'mongodb://localhost:27017', {
   serverApi: {
     version: ServerApiVersion.v1,
     strict: true,
@@ -19,17 +15,21 @@ const client = new MongoClient(uri, {
   }
 });
 
-async function run() {
+let isConnected = false;
+
+async function connectDB() {
+  if (isConnected) return client;
   try {
-    // Connect the client to the server	(optional starting in v4.7)
     await client.connect();
-    // Send a ping to confirm a successful connection
-    await client.db("admin").command({ ping: 1 });
+    isConnected = true;
     console.log("Pinged your deployment. You successfully connected to MongoDB!");
+    return client;
   } catch (error) {
     console.error("MongoDB Connection Error:", error);
+    throw error;
   }
 }
-run().catch(console.dir);
 
-module.exports = { client, run };
+connectDB().catch(console.dir);
+
+module.exports = { client, connectDB };

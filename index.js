@@ -37,9 +37,9 @@ app.get('/', (req, res) => {
   });
 });
 
-// Start Server locally if not running as serverless function
-if (process.env.NODE_ENV !== 'production') {
-  const PORT = process.env.PORT || 5000;
+// Start Server locally
+const PORT = process.env.PORT || 5000;
+if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
   app.listen(PORT, () => {
     console.log(`🚀 Green Gladiators Server running on port ${PORT}`);
   });
